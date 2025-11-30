@@ -20,8 +20,7 @@
             --verde-sucesso: #4CAF50; /* Única cor de destaque (Comissão Final) */
             --laranja-aviso: #FFC107; /* Cor de Alerta/Média */
             --vermelho-erro: #DC3545; /* Remover/Erro */
-            /* --cor-acao: #505050; (Removido) */
-            /* --cor-hover: #606060; (Removido) */
+            --cor-hover: #606060; /* Cinza claro no hover */
         }
         
         * { box-sizing: border-box; }
@@ -448,6 +447,12 @@
 </head>
 <body>
     <div id="app-container">
+        <!-- NOVO: Bloco de Erro Crítico -->
+        <div id="critical-error-box" style="display:none; background: #3c1a1a; border: 1px solid var(--vermelho-erro); padding: 20px; border-radius: 8px; text-align: center;">
+            <h3 style="color: var(--vermelho-erro); margin-top: 0;">Erro Crítico de Configuração</h3>
+            <p id="critical-error-message" style="color: var(--texto-principal); font-size: 16px;">--</p>
+        </div>
+        
         <header class="mb-6">
             <h1>Relatório de Comissão do Mentor</h1>
             <p class="text-center text-sm" style="color: var(--texto-secundario);">Gestão de Faturamento e Cálculo de Comissão (8%)</p>
@@ -720,6 +725,22 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, addDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
+        // ✅ PASSO 1: CONFIGURAÇÃO DO FIREBASE (COPIADO DO SEU CONSOLE)
+        const firebaseConfig = {
+          apiKey: "AIzaSyDSe9MpVHGT7vEM7KRB2sxg-425SDpG4S4",
+          authDomain: "relatorio-29dd2.firebaseapp.com",
+          projectId: "relatorio-29dd2",
+          storageBucket: "relatorio-29dd2.firebasestorage.app",
+          messagingSenderId: "256113282650",
+          appId: "1:256113282650:web:e9c55edddbd4ab26f51263",
+          measurementId: "G-4WMWHDYZTN"
+        };
+
+        // ✅ PASSO 2: ID DO APP CANVAS (COPIADO DO ERRO)
+        const CANVAS_APP_ID = "c_41bd86e8635b0174_relatorio_com_dark.html-157";
+        // ----------------------------------------------------
+
+
         const getDocRef = (appId, userId) => doc(db, `artifacts/${appId}/users/${userId}/${DADOS_COLLECTION}/${DADOS_DOCUMENT}`);
         // Caminho corrigido para criar a subcoleção de histórico corretamente
         const getHistoricoColRef = (appId, userId) => collection(db, `artifacts/${appId}/users/${userId}/${DADOS_COLLECTION}/${DADOS_DOCUMENT}`, `historico-mensal`);
@@ -727,33 +748,38 @@
 
         const performAuth = async () => {
             try {
-                // A configuração e a chave API são injetadas automaticamente pelas variáveis __app_id, __firebase_config e __initial_auth_token.
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-                
+                // A configuração agora vem do objeto acima
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 const auth = getAuth(app);
 
-                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                // No deploy, não temos o __initial_auth_token.
+                // Vamos *sempre* usar o login anônimo.
+                await signInAnonymously(auth);
                 
                 mentorId = auth.currentUser.uid;
                 authReady = true;
 
-                // Define as referências após a autenticação
-                dadosRef = getDocRef(appId, mentorId);
-                historicoCollectionRef = getHistoricoColRef(appId, mentorId);
+                // Define as referências usando o ID do Canvas que você colou
+                dadosRef = getDocRef(CANVAS_APP_ID, mentorId);
+                historicoCollectionRef = getHistoricoColRef(CANVAS_APP_ID, mentorId);
 
                 iniciarMonitoramentoFirestore();
 
             } catch (error) {
                 console.error("Erro de Autenticação Firebase:", error);
+                
+                const errorBox = document.getElementById('critical-error-box');
+                const errorMessage = document.getElementById('critical-error-message');
+
+                if (error.code === 'auth/configuration-not-found') {
+                    errorMessage.innerHTML = "O Login Anônimo não está ativado no seu painel do Firebase.<br><strong>Ação Necessária:</strong> Vá para 'Authentication' > 'Sign-in method' no seu projeto Firebase e **ative 'Anônimo'**. Em seguida, atualize esta página.";
+                    errorBox.style.display = 'block';
+                } else {
+                    errorMessage.textContent = `Ocorreu um erro inesperado: ${error.message}`;
+                    errorBox.style.display = 'block';
+                }
+                
                 // Fallback para dados mock se a autenticação falhar
                 carregarDadosMock();
             }
