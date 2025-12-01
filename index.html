@@ -1047,6 +1047,7 @@
 
       // --- Funções de Manipulação da Interface (Colaboradores e Serviços) ---
 
+      // --- CORREÇÃO APLICADA AQUI ---
       const popularSelector = () => {
         selectorEl.innerHTML = '<option value="">-- Selecione --</option>';
         colaboradores.forEach(colab => {
@@ -1056,22 +1057,31 @@
           selectorEl.appendChild(option);
         });
 
-        // 1. Tenta manter o ativo, se houver
+        // 1. Tenta manter o ativo, se houver e ele ainda existir
         let idToSelect = colaboradorAtivoId;
-
-        // 2. Se o ativo não existe ou é null, tenta o primeiro
-        if (!idToSelect && colaboradores.length > 0) {
+        const ativoExiste = colaboradores.some(c => String(c.id) === String(idToSelect));
+        
+        // Se não houver ativo ou o ativo não existir mais, seleciona o primeiro
+        if (!ativoExiste && colaboradores.length > 0) {
           idToSelect = colaboradores[0].id;
+        } else if (!ativoExiste && colaboradores.length === 0) {
+            idToSelect = null; // Nenhum colaborador para selecionar
         }
-
-        // 3. Atualiza o seletor DOM e chama a função de detalhes
+        
+        // 2. Atualiza o seletor DOM e chama a função de detalhes
         if (idToSelect) {
           selectorEl.value = idToSelect;
           colaboradorAtivoId = idToSelect; // Garante que o estado JS reflita o DOM
+        } else {
+            selectorEl.value = ""; // Limpa o seletor se não houver colaboradores
+            colaboradorAtivoId = null;
         }
         
-        selecionarColaborador(idToSelect); // Chama a função que renderiza os detalhes
+        // CHAVE DA CORREÇÃO: Chama a função de detalhes APÓS preencher
+        selecionarColaborador(colaboradorAtivoId); 
       };
+      // --- FIM DA CORREÇÃO APLICADA ---
+
 
       window.selecionarColaborador = (id) => {
         colaboradorAtivoId = id;
