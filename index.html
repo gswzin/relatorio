@@ -672,11 +672,11 @@
       const mediaMensalHistoricoEl = document.getElementById('media-mensal-historico');
       const dataAdicaoDisplayEl = document.getElementById('data-adicao-display');
       const mesesDesdeAdicaoEl = document.getElementById('meses-desde-adicao');
-      // --- FIREBASE IMPORTS e INICIALIZAÇÃO ---
+      // --- FIREBASE IMPORTS e CONFIGURAÇÃO ---
       import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
       import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
       import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, addDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-      // ✅ PASSO 1: CONFIGURAÇÃO DO FIREBASE (COPIADO DO SEU CONSOLE)
+      // ✅ PASSO 1: CONFIGURAÇÃO DO FIREBASE
       const firebaseConfig = {
         apiKey: "AIzaSyDSe9MpVHGT7vEM7KRB2sxg-425SDpG4S4",
         authDomain: "relatorio-29dd2.firebaseapp.com",
@@ -686,46 +686,27 @@
         appId: "1:256113282650:web:e9c55edddbd4ab26f51263",
         measurementId: "G-4WMWHDYZTN"
       };
-      // ✅ PASSO 2: ID DO APP CANVAS (COPIADO DO ERRO)
+      // ✅ PASSO 2: ID DO APP CANVAS
       const CANVAS_APP_ID = "c_41bd86e8635b0174_relatorio_com_dark.html-157";
       // ----------------------------------------------------
       const getDocRef = (appId, userId) => doc(db, `artifacts/${appId}/users/${userId}/${DADOS_COLLECTION}/${DADOS_DOCUMENT}`);
       const getHistoricoColRef = (appId, userId) => collection(db, `artifacts/${appId}/users/${userId}/${DADOS_COLLECTION}/${DADOS_DOCUMENT}`, `historico-mensal`);
-      const performAuth = async () => {
-        try {
-          const app = initializeApp(firebaseConfig);
-          db = getFirestore(app);
-          const auth = getAuth(app);
-          // Tenta Login Anônimo
-          const userCredential = await signInAnonymously(auth);
-          mentorId = userCredential.user.uid;
-          authReady = true;
-          console.log("✅ Autenticação Firebase Anônima SUCEDIDA. User ID:", mentorId);
-          // Define as referências usando o ID do Canvas e o ID do usuário autenticado
-          dadosRef = getDocRef(CANVAS_APP_ID, mentorId);
-          historicoCollectionRef = getHistoricoColRef(CANVAS_APP_ID, mentorId);
-          iniciarMonitoramentoFirestore();
-        } catch (error) {
-          console.error("❌ Erro de Autenticação Firebase:", error);
-          const errorBox = document.getElementById('critical-error-box');
-          const errorMessage = document.getElementById('critical-error-message');
-          
-          errorMessage.innerHTML = `Ocorreu um erro ao conectar ao Firebase, mas o aplicativo continuará funcionando com dados de demonstração. <br>Mensagem: <strong>${error.message}</strong>`;
-          errorBox.style.display = 'block';
-          // Fallback para dados mock
-          carregarDadosMock();
-        }
+
+      // --- Funções de Persistência no Firestore (MOVEMOS PARA CIMA) ---
+
+      /**
+       * Salva o contexto (data e observações) do relatório atual.
+       * Exposto globalmente para uso no HTML.
+       */
+      window.salvarContextoRelatorio = () => {
+        contextoRelatorio.dataRelatorio = dataRelatorioEl.value;
+        contextoRelatorio.observacoes = observacoesRelatorioEl.value;
+        salvarDados();
       };
 
-      // --- CORREÇÃO DE FLUXO APLICADA AQUI ---
-      // A CORREÇÃO CRÍTICA PARA GARANTIR QUE AS OPÇÕES CARREGUEM IMEDIATAMENTE.
-      // É chamado para inicializar a UI com os dados de mock, mesmo que o Firebase demore.
-      performAuth();
-      popularCargosSelector(); 
-      popularSelector();
-      // ----------------------------------------
-
-      // --- Funções de Persistência no Firestore ---
+      /**
+       * Salva o estado atual (colaboradores, cargos e contexto) no Firestore.
+       */
       const salvarDados = async () => {
         if (!authReady || !dadosRef) return;
         try {
@@ -734,16 +715,16 @@
             colaboradores: colaboradores,
             contexto: contextoRelatorio
           };
+          // setDoc salva os dados no caminho específico do mentor
           await setDoc(dadosRef, dataToSave, { merge: true });
         } catch (e) {
           console.error("Erro ao salvar dados no Firestore:", e);
         }
       };
-      window.salvarContextoRelatorio = () => {
-        contextoRelatorio.dataRelatorio = dataRelatorioEl.value;
-        contextoRelatorio.observacoes = observacoesRelatorioEl.value;
-        salvarDados();
-      };
+
+      /**
+       * Inicia o monitoramento em tempo real do Firestore usando onSnapshot.
+       */
       const iniciarMonitoramentoFirestore = () => {
         onSnapshot(dadosRef, (docSnapshot) => {
           if (docSnapshot.exists()) {
@@ -785,8 +766,11 @@
           console.error("Erro ao monitorar o Firestore:", error);
         });
       };
+      
+      /**
+       * Fallback robusto se a autenticação falhar.
+       */
       const carregarDadosMock = () => {
-        // Fallback robusto se a autenticação falhar
         colaboradores = DADOS_MOCK;
         CARGOS = ['Borracheiro', 'Alinhador', 'Mecânico', 'Outro'];
         popularCargosSelector();
@@ -795,6 +779,48 @@
         popularFiltroColaborador();
         calcularRelatorioTotal();
       };
+      
+      /**
+       * Tenta o login anônimo e inicializa as referências do Firestore.
+       */
+      const performAuth = async () => {
+        try {
+          const app = initializeApp(firebaseConfig);
+          db = getFirestore(app);
+          const auth = getAuth(app);
+          // Tenta Login Anônimo
+          const userCredential = await signInAnonymously(auth);
+          mentorId = userCredential.user.uid;
+          authReady = true;
+          console.log("✅ Autenticação Firebase Anônima SUCEDIDA. User ID:", mentorId);
+          // Define as referências usando o ID do Canvas e o ID do usuário autenticado
+          dadosRef = getDocRef(CANVAS_APP_ID, mentorId);
+          historicoCollectionRef = getHistoricoColRef(CANVAS_APP_ID, mentorId);
+          
+          // CRÍTICO: Chama a função que agora está definida acima
+          iniciarMonitoramentoFirestore();
+          
+        } catch (error) {
+          console.error("❌ Erro de Autenticação Firebase:", error);
+          const errorBox = document.getElementById('critical-error-box');
+          const errorMessage = document.getElementById('critical-error-message');
+          
+          errorMessage.innerHTML = `Ocorreu um erro ao conectar ao Firebase, mas o aplicativo continuará funcionando com dados de demonstração. <br>Mensagem: <strong>${error.message}</strong>`;
+          errorBox.style.display = 'block';
+          // Fallback para dados mock
+          carregarDadosMock();
+        }
+      };
+      
+      // --- INICIALIZAÇÃO DA APLICAÇÃO ---
+      // CHAVE DA CORREÇÃO 1: Inicia a autenticação/conexão
+      performAuth(); 
+      // CHAVE DA CORREÇÃO 2 (Fluxo): Garante que a UI inicial seja preenchida IMEDIATAMENTE 
+      // com os dados de mock, mesmo que o Firebase demore.
+      popularCargosSelector(); 
+      popularSelector(); 
+      // ----------------------------------------
+
       // --- Funções de Utilidade e Interface ---
       const formatarMoeda = (valor) => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
@@ -900,7 +926,6 @@
         }
       };
       // --- Funções de Manipulação da Interface (Colaboradores e Serviços) ---
-      // --- CORREÇÃO APLICADA AQUI ---
       const popularSelector = () => {
         selectorEl.innerHTML = '<option value="">-- Selecione --</option>';
         colaboradores.forEach(colab => {
